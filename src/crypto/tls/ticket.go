@@ -184,7 +184,7 @@ func certificatesToBytesSlice(certs []*x509.Certificate) [][]byte {
 }
 
 // ParseSessionState parses a [SessionState] encoded by [SessionState.Bytes].
-func ParseSessionState(data []byte) (*SessionState, error) {
+func ParseSessionState(data []byte, conn *Conn) (*SessionState, error) {
 	ss := &SessionState{}
 	s := cryptobyte.String(data)
 	var typ, extMasterSecret, earlyData uint8
@@ -199,7 +199,7 @@ func ParseSessionState(data []byte) (*SessionState, error) {
 		!s.ReadUint8(&extMasterSecret) ||
 		!s.ReadUint8(&earlyData) ||
 		len(ss.secret) == 0 ||
-		!unmarshalCertificate(&s, &cert) {
+		!unmarshalCertificate(&s, &cert, conn) {
 		return nil, errors.New("tls: invalid session encoding")
 	}
 	for !extra.Empty() {
@@ -354,13 +354,13 @@ func (c *Config) encryptTicket(state []byte, ticketKeys []ticketKey) ([]byte, er
 // be used as a [Config.UnwrapSession] implementation.
 //
 // If the ticket can't be decrypted or parsed, DecryptTicket returns (nil, nil).
-func (c *Config) DecryptTicket(identity []byte, cs ConnectionState) (*SessionState, error) {
+func (c *Config) DecryptTicket(identity []byte, cs ConnectionState, conn *Conn) (*SessionState, error) {
 	ticketKeys := c.ticketKeys(nil)
 	stateBytes := c.decryptTicket(identity, ticketKeys)
 	if stateBytes == nil {
 		return nil, nil
 	}
-	s, err := ParseSessionState(stateBytes)
+	s, err := ParseSessionState(stateBytes, conn)
 	if err != nil {
 		return nil, nil // drop unparsable tickets on the floor
 	}

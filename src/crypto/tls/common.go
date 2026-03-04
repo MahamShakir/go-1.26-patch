@@ -106,6 +106,11 @@ const (
 	compressionNone uint8 = 0
 )
 
+type Extension struct {
+	Type uint16
+	Data []byte
+}
+
 // TLS extension numbers
 const (
 	extensionServerName              uint16 = 0
@@ -177,6 +182,11 @@ func isPQKeyExchange(curve CurveID) bool {
 type keyShare struct {
 	group CurveID
 	data  []byte
+}
+
+type KeyShare struct {
+	Group CurveID
+	Data  []byte
 }
 
 // TLS 1.3 PSK Key Exchange Modes. See RFC 8446, Section 4.2.9.
@@ -306,6 +316,17 @@ type ConnectionState struct {
 	// OCSPResponse is a stapled Online Certificate Status Protocol (OCSP)
 	// response provided by the peer for the leaf certificate, if any.
 	OCSPResponse []byte
+
+	ServerHello                 *ServerHelloMsg
+	ClientHello                 ClientHelloMsg
+	ServerExtensions            []Extension
+	ServerEncryptedExtensions   []Extension
+	ServerCertRequestExtensions []Extension
+	HelloRetryRequestExtensions []Extension
+	CertificateExtensions       []Extension
+	SendAlerts                  []Alert
+	RecvAlerts                  []Alert
+	Errors                      []error
 
 	// TLSUnique contains the "tls-unique" channel binding value (see RFC 5929,
 	// Section 3). This value will be nil for TLS 1.3 connections and for
@@ -763,7 +784,7 @@ type Config struct {
 	// If UnwrapSession returns an error, the connection is terminated. If it
 	// returns (nil, nil), the session is ignored. crypto/tls may still choose
 	// not to resume the returned session.
-	UnwrapSession func(identity []byte, cs ConnectionState) (*SessionState, error)
+	UnwrapSession func(identity []byte, cs ConnectionState, conn *Conn) (*SessionState, error)
 
 	// WrapSession is called on the server to produce a session ticket/identity.
 	//
@@ -1216,7 +1237,7 @@ var supportedVersions = []uint16{
 const roleClient = true
 const roleServer = false
 
-var tls10server = godebug.New("tls10server")
+// var tls10server = godebug.New("tls10server")
 
 // supportedVersions returns the list of supported TLS versions, sorted from
 // highest to lowest (and hence also in preference order).
@@ -1227,7 +1248,8 @@ func (c *Config) supportedVersions(isClient bool) []uint16 {
 			continue
 		}
 		if (c == nil || c.MinVersion == 0) && v < VersionTLS12 {
-			if isClient || tls10server.Value() != "1" {
+			// if isClient || tls10server.Value() != "1" {
+			if isClient {
 				continue
 			}
 		}
@@ -1645,7 +1667,7 @@ func (c *Certificate) leaf() (*x509.Certificate, error) {
 
 type handshakeMessage interface {
 	marshal() ([]byte, error)
-	unmarshal([]byte) bool
+	unmarshal([]byte, *Conn) bool
 }
 
 type handshakeMessageWithOriginalBytes interface {

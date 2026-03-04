@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-	"internal/godebug"
 	"io"
 	"net"
 	"sync"
@@ -121,6 +120,20 @@ type Conn struct {
 	activeCall atomic.Int32
 
 	tmp [16]byte
+
+	serverHello *serverHelloMsg
+	clientHello *clientHelloMsg
+
+	serverExtensions            []Extension
+	serverEncryptedExtensions   []Extension
+	serverCertRequestExtensions []Extension
+	helloRetryRequestExtensions []Extension
+	certificateExtensions       []Extension
+
+	sendAlerts []alert
+	recvAlerts []alert
+
+	errors []error
 }
 
 // Access to net.Conn methods.
@@ -1178,7 +1191,7 @@ func (c *Conn) unmarshalHandshakeMessage(data []byte, transcript transcriptHash)
 	// so pass in a fresh copy that won't be overwritten.
 	data = append([]byte(nil), data...)
 
-	if !m.unmarshal(data) {
+	if !m.unmarshal(data, c) {
 		return nil, c.in.setErrorLocked(c.sendAlert(alertDecodeError))
 	}
 
@@ -1611,7 +1624,7 @@ func (c *Conn) ConnectionState() ConnectionState {
 	return c.connectionStateLocked()
 }
 
-var tlsunsafeekm = godebug.New("tlsunsafeekm")
+// var tlsunsafeekm = godebug.New("tlsunsafeekm")
 
 func (c *Conn) connectionStateLocked() ConnectionState {
 	var state ConnectionState
@@ -1640,18 +1653,44 @@ func (c *Conn) connectionStateLocked() ConnectionState {
 		state.ekm = noEKMBecauseRenegotiation
 	} else if c.vers != VersionTLS13 && !c.extMasterSecret {
 		state.ekm = func(label string, context []byte, length int) ([]byte, error) {
-			if tlsunsafeekm.Value() == "1" {
-				tlsunsafeekm.IncNonDefault()
-				return c.ekm(label, context, length)
-			}
+			// if tlsunsafeekm.Value() == "1" {
+			// 	tlsunsafeekm.IncNonDefault()
+			// 	return c.ekm(label, context, length)
+			// }
 			return noEKMBecauseNoEMS(label, context, length)
 		}
 	} else {
 		state.ekm = c.ekm
 	}
+
+	// TLS analysis
+	if c.serverHello != nil {
+		newHello := NewServerHelloMsg(c.serverHello)
+		state.ServerHello = &newHello
+	}
+	state.ServerExtensions = c.serverExtensions
+	state.ServerEncryptedExtensions = c.serverEncryptedExtensions
+	state.ServerCertRequestExtensions = c.serverCertRequestExtensions
+	state.HelloRetryRequestExtensions = c.helloRetryRequestExtensions
+	state.CertificateExtensions = c.certificateExtensions
+	state.ClientHello = NewClientHelloMsg(c.clientHello)
+	state.SendAlerts = parseAlerts(c.sendAlerts)
+	state.RecvAlerts = parseAlerts(c.recvAlerts)
+	state.Errors = c.errors
+
+
 	state.ECHAccepted = c.echAccepted
 	return state
 }
+
+func parseAlerts(alerts []alert) []Alert {
+	result := make([]Alert, len(alerts))
+	for i := range alerts {
+		result[i] = Alert(alerts[i])
+	}
+	return result
+}
+
 
 // OCSPResponse returns the stapled OCSP response from the TLS server, if
 // any. (Only valid for client connections.)

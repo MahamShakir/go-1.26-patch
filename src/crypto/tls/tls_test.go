@@ -874,7 +874,7 @@ func TestCloneFuncFields(t *testing.T) {
 			called |= 1 << 5
 			return nil
 		},
-		UnwrapSession: func(identity []byte, cs ConnectionState) (*SessionState, error) {
+		UnwrapSession: func(identity []byte, cs ConnectionState, conn *Conn) (*SessionState, error) {
 			called |= 1 << 6
 			return nil, nil
 		},
@@ -900,7 +900,7 @@ func TestCloneFuncFields(t *testing.T) {
 	c2.GetConfigForClient(nil)
 	c2.VerifyPeerCertificate(nil, nil)
 	c2.VerifyConnection(ConnectionState{})
-	c2.UnwrapSession(nil, ConnectionState{})
+	c2.UnwrapSession(nil, ConnectionState{}, &Conn{})
 	c2.WrapSession(ConnectionState{}, nil)
 	c2.EncryptedClientHelloRejectionVerify(ConnectionState{})
 	c2.GetEncryptedClientHelloKeys(nil)

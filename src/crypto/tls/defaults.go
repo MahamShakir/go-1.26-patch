@@ -5,7 +5,7 @@
 package tls
 
 import (
-	"internal/godebug"
+	"os"
 	"slices"
 	_ "unsafe" // for linkname
 )
@@ -13,18 +13,18 @@ import (
 // Defaults are collected in this file to allow distributions to more easily patch
 // them to apply local policies.
 
-var tlsmlkem = godebug.New("tlsmlkem")
-var tlssecpmlkem = godebug.New("tlssecpmlkem")
+// var tlsmlkem = godebug.New("tlsmlkem")
+// var tlssecpmlkem = godebug.New("tlssecpmlkem")
 
 // defaultCurvePreferences is the default set of supported key exchanges, as
 // well as the preference order.
 func defaultCurvePreferences() []CurveID {
 	switch {
 	// tlsmlkem=0 restores the pre-Go 1.24 default.
-	case tlsmlkem.Value() == "0":
+	case os.Getenv("GODEBUG") == "tlsmlkem=0":
 		return []CurveID{X25519, CurveP256, CurveP384, CurveP521}
 	// tlssecpmlkem=0 restores the pre-Go 1.26 default.
-	case tlssecpmlkem.Value() == "0":
+	case os.Getenv("GODEBUG") == "tlssecpmlkem=0":
 		return []CurveID{X25519MLKEM768, X25519, CurveP256, CurveP384, CurveP521}
 	default:
 		return []CurveID{
@@ -55,8 +55,8 @@ func defaultSupportedSignatureAlgorithms() []SignatureScheme {
 	}
 }
 
-var tlsrsakex = godebug.New("tlsrsakex")
-var tls3des = godebug.New("tls3des")
+var tlsrsakex = false
+var tls3des = false
 
 func supportedCipherSuites(aesGCMPreferred bool) []uint16 {
 	if aesGCMPreferred {
@@ -70,8 +70,8 @@ func defaultCipherSuites(aesGCMPreferred bool) []uint16 {
 	cipherSuites := supportedCipherSuites(aesGCMPreferred)
 	return slices.DeleteFunc(cipherSuites, func(c uint16) bool {
 		return disabledCipherSuites[c] ||
-			tlsrsakex.Value() != "1" && rsaKexCiphers[c] ||
-			tls3des.Value() != "1" && tdesCiphers[c]
+			!tlsrsakex && rsaKexCiphers[c] ||
+			!tls3des && tdesCiphers[c]
 	})
 }
 

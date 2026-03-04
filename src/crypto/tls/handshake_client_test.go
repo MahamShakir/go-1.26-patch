@@ -1067,7 +1067,7 @@ func (c *serializingClientCache) Get(sessionKey string) (session *ClientSessionS
 	if c.ticket == nil {
 		return nil, false
 	}
-	state, err := ParseSessionState(c.state)
+	state, err := ParseSessionState(c.state, &Conn{})
 	if err != nil {
 		c.t.Error(err)
 		return nil, false
@@ -1501,7 +1501,7 @@ func TestHostnameInSNI(t *testing.T) {
 		s.Close()
 
 		var m clientHelloMsg
-		if !m.unmarshal(record) {
+		if !m.unmarshal(record, nil) {
 			t.Errorf("unmarshaling ClientHello for %q failed", tt.in)
 			continue
 		}

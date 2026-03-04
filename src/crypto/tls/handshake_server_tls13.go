@@ -323,7 +323,7 @@ func (hs *serverHandshakeStateTLS13) checkForResumption() error {
 		var sessionState *SessionState
 		if c.config.UnwrapSession != nil {
 			var err error
-			sessionState, err = c.config.UnwrapSession(identity.label, c.connectionStateLocked())
+			sessionState, err = c.config.UnwrapSession(identity.label, c.connectionStateLocked(), c)
 			if err != nil {
 				return err
 			}
@@ -336,7 +336,7 @@ func (hs *serverHandshakeStateTLS13) checkForResumption() error {
 				continue
 			}
 			var err error
-			sessionState, err = ParseSessionState(plaintext)
+			sessionState, err = ParseSessionState(plaintext, c)
 			if err != nil {
 				continue
 			}
@@ -616,7 +616,7 @@ func (hs *serverHandshakeStateTLS13) doHelloRetryRequest(selectedGroup CurveID) 
 				return nil, errors.New("tls: failed to decrypt second client hello encrypted client hello extension payload")
 			}
 
-			echInner, err := decodeInnerClientHello(clientHello, encodedInner)
+			echInner, err := decodeInnerClientHello(clientHello, encodedInner, c)
 			if err != nil {
 				c.sendAlert(alertIllegalParameter)
 				return nil, errors.New("tls: client sent invalid encrypted client hello extension")

@@ -208,11 +208,6 @@ func (c *Conn) readClientHello(ctx context.Context) (*clientHelloMsg, *echServer
 		return nil, nil, errors.New("tls: Encrypted Client Hello cannot be used pre-TLS 1.3")
 	}
 
-	if c.config.MinVersion == 0 && c.vers < VersionTLS12 {
-		tls10server.Value() // ensure godebug is initialized
-		tls10server.IncNonDefault()
-	}
-
 	return clientHello, ech, nil
 }
 
@@ -406,15 +401,6 @@ func (hs *serverHandshakeState) pickCipherSuite() error {
 	}
 	c.cipherSuite = hs.suite.id
 
-	if c.config.CipherSuites == nil && !fips140tls.Required() && rsaKexCiphers[hs.suite.id] {
-		tlsrsakex.Value() // ensure godebug is initialized
-		tlsrsakex.IncNonDefault()
-	}
-	if c.config.CipherSuites == nil && !fips140tls.Required() && tdesCiphers[hs.suite.id] {
-		tls3des.Value() // ensure godebug is initialized
-		tls3des.IncNonDefault()
-	}
-
 	for _, id := range hs.clientHello.cipherSuites {
 		if id == TLS_FALLBACK_SCSV {
 			// The client is doing a fallback connection. See RFC 7507.
@@ -460,7 +446,7 @@ func (hs *serverHandshakeState) checkForResumption() error {
 
 	var sessionState *SessionState
 	if c.config.UnwrapSession != nil {
-		ss, err := c.config.UnwrapSession(hs.clientHello.sessionTicket, c.connectionStateLocked())
+		ss, err := c.config.UnwrapSession(hs.clientHello.sessionTicket, c.connectionStateLocked(), c)
 		if err != nil {
 			return err
 		}
@@ -473,7 +459,7 @@ func (hs *serverHandshakeState) checkForResumption() error {
 		if plaintext == nil {
 			return nil
 		}
-		ss, err := ParseSessionState(plaintext)
+		ss, err := ParseSessionState(plaintext, c)
 		if err != nil {
 			return nil
 		}

@@ -259,7 +259,7 @@ func extractRawExtensions(hello *clientHelloMsg) ([]rawExtension, error) {
 	return rawExtensions, nil
 }
 
-func decodeInnerClientHello(outer *clientHelloMsg, encoded []byte) (*clientHelloMsg, error) {
+func decodeInnerClientHello(outer *clientHelloMsg, encoded []byte, conn *Conn) (*clientHelloMsg, error) {
 	// Reconstructing the inner client hello from its encoded form is somewhat
 	// complicated. It is missing its header (message type and length), session
 	// ID, and the extensions may be compressed. Since we need to put the
@@ -361,7 +361,7 @@ func decodeInnerClientHello(outer *clientHelloMsg, encoded []byte) (*clientHello
 		return nil, err
 	}
 	inner := &clientHelloMsg{}
-	if !inner.unmarshal(reconBytes) {
+	if !inner.unmarshal(reconBytes, conn) {
 		return nil, errors.New("tls: invalid reconstructed inner client hello")
 	}
 
@@ -613,7 +613,7 @@ func (c *Conn) processECHClientHello(outer *clientHelloMsg, echKeys []EncryptedC
 		// encrypt the payload. This is only a MAY in the spec, so we're not
 		// doing anything revolutionary.
 
-		echInner, err := decodeInnerClientHello(outer, encodedInner)
+		echInner, err := decodeInnerClientHello(outer, encodedInner, c)
 		if err != nil {
 			c.sendAlert(alertIllegalParameter)
 			return nil, nil, errInvalidECHExt
